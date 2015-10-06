@@ -63,11 +63,11 @@ class S3Configuration extends coreConfiguration implements coreConfigurationInte
 	}
 
 	public function hasPublicURL(){
-		return 'https://lokalleads.s3.amazonaws.com/';
+		return 'https://'.$this->bucketname.'.s3.amazonaws.com/';
 	}
 	
 	public function hasRelativePath(){
-		return 'https://lokalleads.s3.amazonaws.com/';
+		return 'https://'.$this->bucketname.'.s3.amazonaws.com/';
 	}
 	
 	public function loadFromRequest(coreRequest $req){
@@ -130,7 +130,7 @@ class S3Configuration extends coreConfiguration implements coreConfigurationInte
 			'secret' => $this->secretkey
 		));
 
-		$AwsS3 = new coreAwsS3($client,$this->bucketname,'/test123');
+		$AwsS3 = new coreAwsS3($client,$this->bucketname,($this->subfolder ? $this->subfolder : ''));
 		return $AwsS3;
 	}
 	
