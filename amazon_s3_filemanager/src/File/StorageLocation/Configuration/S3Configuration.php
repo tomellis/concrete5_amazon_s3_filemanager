@@ -183,7 +183,9 @@ class S3Configuration extends coreConfiguration implements coreConfigurationInte
 	}
 
 	public function getRelativePathToFile($file){
-		return $this->publicPath.$file;
+		if($this->enablePublicPath)
+			return $this->publicPath.$file;
+		return str_replace('//', '/', $this->createExternalUrl().$file);
 	}
 
 	public function hasPublicURL(){
@@ -192,20 +194,19 @@ class S3Configuration extends coreConfiguration implements coreConfigurationInte
 	
 	public function hasRelativePath(){
 		if($this->enablePublicPath)
-			return false;
-		return true;
+			return true;
+		return false;
 	}
 
 	public function getPublicURLToFile($file){
-		if(strpos($rel, '://')) {
+	    $rel = $this->getRelativePathToFile($file);
+        if(strpos($rel, '://')) {
             return $rel;
         }
 
         $url = \Core::getApplicationURL(true);
-       
-		if($this->enablePublicPath)
-			return str_replace('//', '/', $url.$this->publicPath.$file);
-		return str_replace('//', '/', $this->createExternalUrl().$file);
+        $url = $url->setPath($rel);
+        return trim((string) $url, '/');
 	}
 
 
