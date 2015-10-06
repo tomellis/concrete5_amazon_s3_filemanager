@@ -9,11 +9,13 @@ if (is_object($configuration)) {
 	$bucketname = $configuration->getBucketname();
 	$subfolder = $configuration->getSubfolder();
 	$publicPath = $configuration->getPublicPath();
+	$enablePublicPath = $configuration->getEnablePublicPath();
+	$region = $configuration->getRegion();
+
+	$regions = \Concrete\Package\AmazonS3Filemanager\Controller::getRegions();
 }
 
 ?>
-
-
 <fieldset>
 	<div class="form-group">
 		<label for="accesskey"><?php echo t('Accesskey')?></label>
@@ -40,29 +42,49 @@ if (is_object($configuration)) {
 <fieldset>
 	<legend><?php echo t('Optionale Angaben') ?></legend>
 	<div class="form-group">
-		<label for="subfolder"><?php echo t('Subfolder in Ihrem Bucket')?></label>
+		<label for="subfolder"><?php echo t('Subfolder in Ihrem Bucket - Ordner wird erstellt wenn er nicht existiert!')?></label>
 		<?php echo $form->text('fslType[subfolder]', $subfolder, array('placeholder' => t('Subfolder in Ihrem Bucket')))?>
-		<span><?php echo t('Ordner wird erstellt wenn er nicht existiert!'); ?></span>
 	</div>
+
+
+	<div class="form-group">
+		<label for="region"><?php echo t('Amazon S3 Region auswählen')?></label>
+		<?php echo $form->select('fslType[region]', $regions, $region); ?>
+	</div>
+
 
 	<div class="form-group">
 		<label>
-			<?php echo $form->checkbox('enablePublicPath', $enablePublicPath, $enablePublicPath ? 'checked' : '') ?>
-			Rewrite aktivieren
+			<input id="enablePublicPath" type="checkbox" name="fslType[enablePublicPath]" value="true" <?php echo $enablePublicPath ? 'checked' : ''?>>
+			<?php echo t('Rewrite aktivieren'); ?>
 		</label>
+	</div> 
+	
+	<div class="form-group" id="publicPath" style="display:none">
+		<label for="publicPath"><?php echo t('Pfad der auf Ihrer Webseite angezeigt werden soll')?></label>
+		<div class="input-group">
+			<?php echo $form->text('fslType[publicPath]', $publicPath, array('placeholder' => t('Pfad der auf Ihrer webseite dargestellt werden soll z.b. /files/s3/')))?>
+			<span class="input-group-addon"><i class="fa fa-asterisk"></i></span>
+		</div>
 	</div>
 
-	<div class="form-group" id="publicPath">
-		<label for="publicPath"><?php echo t('Pfad der auf Ihrer webseite dargestellt werden soll')?></label>
-		<?php echo $form->text('fslType[publicPath]', $publicPath, array('placeholder' => t('Pfad der auf Ihrer webseite dargestellt werden soll z.b. /files/s3/')))?>
-		<span><?php echo t('Achtung es wird ein htaccess Rewrite angelegt!'); ?></span>
-	</div>
 </fieldset>
 
 
 <script type="text/javascript">
+
+
+	var _publicPath = function(){
+		if($('#enablePublicPath').is(':checked'))
+			$('#publicPath').show();
+		else
+			$('#publicPath').hide();
+	}
+
 	$('#enablePublicPath').on('change',function(){
-		console.log('hallo')
+		_publicPath();
 	});
+
+	_publicPath();
 
 </script>

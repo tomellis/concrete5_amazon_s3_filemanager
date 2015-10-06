@@ -6,9 +6,8 @@ use \Concrete\Core\Error\Error as coreError,
 	\Concrete\Core\File\StorageLocation\Configuration\Configuration as coreConfiguration,
 	\Concrete\Core\File\StorageLocation\Configuration\ConfigurationInterface as coreConfigurationInterface,
 	\Concrete\Core\Http\Request as coreRequest,
-	\Concrete\Flysystem\Adapter\AwsS3 as coreAwsS3;
-
-use Aws\S3\S3Client;
+	\Concrete\Flysystem\Adapter\AwsS3 as coreAwsS3,
+	Aws\S3\S3Client;
 
 
 
@@ -20,6 +19,10 @@ class S3Configuration extends coreConfiguration implements coreConfigurationInte
 	protected $secretkey;
 	protected $publicPath;
 	protected $subfolder;
+
+
+	protected $htaccessStartTag = '# -- s3 amazon filemanager rewrite start --';
+	protected $htaccessEndTag = '# -- s3 amazon filemanager rewrite end --';
 
 
 	public function setBucketname($str){
@@ -62,13 +65,22 @@ class S3Configuration extends coreConfiguration implements coreConfigurationInte
 		return $this->subfolder;
 	}
 
-	public function hasPublicURL(){
-		return 'https://'.$this->bucketname.'.s3.amazonaws.com/';
+	public function setEnablePublicPath($str){
+		$this->enablePublicPath = $str;
 	}
-	
-	public function hasRelativePath(){
-		return 'https://'.$this->bucketname.'.s3.amazonaws.com/';
+
+	public function getEnablePublicPath(){
+		return $this->enablePublicPath;
 	}
+
+	public function setRegion($str){
+		$this->region = $str;
+	}
+
+	public function getRegion(){
+		return $this->region;
+	}
+
 	
 	public function loadFromRequest(coreRequest $req){
 		$data = $req->get('fslType');
@@ -76,7 +88,9 @@ class S3Configuration extends coreConfiguration implements coreConfigurationInte
 		$this->accesskey = $data['accesskey'];
 		$this->secretkey = $data['secretkey'];
 		$this->subfolder = $data['subfolder'];
-		$this->publicPath = trim($data['publicPath'], '/');
+		$this->region = $data['region'];
+		$this->enablePublicPath = $data['enablePublicPath'];
+		$this->publicPath = trim($data['publicPath'], "/");
 	}
 	
 	public function validateRequest(coreRequest $req){
@@ -87,7 +101,9 @@ class S3Configuration extends coreConfiguration implements coreConfigurationInte
 		$this->accesskey = $data['accesskey'];
 		$this->secretkey = $data['secretkey'];
 		$this->subfolder = $data['subfolder'];
-		$this->publicPath = $data['publicPath'];
+		$this->region = $data['region'];
+		$this->enablePublicPath = $data['enablePublicPath'];
+		$this->publicPath = trim($data['publicPath'], "/");
 
 		if(!$this->bucketname) {
 			$e->add(t("You must add a Amazon-S3 Bucketname."));
@@ -97,32 +113,101 @@ class S3Configuration extends coreConfiguration implements coreConfigurationInte
 			$e->add(t("You must add a Amazon-S3 Secretkey."));
 		}else if(!$this->testS3Connection()){
 			$e->add(t("Fehler beim Aufbau der Verbindung. Bitte Überprüfe deine Angaben."));
+		}else if($this->enablePublicPath && !$this->publicPath){
+			$e->add(t("Du musst einen pfad angeben der angezeigt werden soll"));
 		}
+
+		if($this->enablePublicPath && $this->publicPath){
+			$this->writeHtaccessEntry($this->getHtaccessEntry());
+		}else{
+			$this->writeHtaccessEntry('');
+		}
+
 		return $e;
 	}
 
 	private function testS3Connection(){
-		$bucketExist = false;
 		try {
 			$s3Client = S3Client::factory(array(
 				'key' => $this->accesskey,
 				'secret' => $this->secretkey
 			));
 
-			$buckets = $s3Client->listBuckets();
+			$bucketExist = $s3Client->doesBucketExist('lokalleads');
 
-			foreach($buckets['Buckets'] as $key => $value) {
-				if($value['Name'] == $this->bucketname)
-					$bucketExist = true;
-			}
-
-			if($bucketExist)
-				return true;
-			return false;
+			return $bucketExist;
 		}catch(Exception $e){
 			return false;
 		}
 	}
+
+	private function writeHtaccessEntry($content = ''){
+		$file = DIR_BASE.'/.htaccess';
+		$current = file_get_contents($file);
+		
+		if(strpos($current,$this->htaccessStartTag) !== false)
+			$current = $this->removeHtaccessEntry($current);
+
+		$current .= $content;
+		file_put_contents($file, $current);
+	}
+
+	private function removeHtaccessEntry($current){
+		$beginPos = strpos($current, $this->htaccessStartTag);
+		$endPos = strpos($current, $this->htaccessEndTag);
+
+		if ($beginPos === false || $endPos === false)
+			return $current;
+		
+		$textToDelete = substr($current, $beginPos , ($endPos + strlen($this->htaccessEndTag)) - $beginPos);
+		return str_replace($textToDelete, '', $current);
+	}
+	
+	private function getHtaccessEntry(){
+		$strHt = '
+		'.$this->htaccessStartTag.''
+		. $this->getHtaccessRewriteRules() . '
+		'.$this->htaccessEndTag.'
+		';
+		return preg_replace('/\t/', '', $strHt);
+	}
+	
+	public function getHtaccessRewriteRules(){
+		$strRules = '
+		<IfModule mod_rewrite.c>
+			RewriteEngine On
+			RewriteBase /
+			RewriteRule ^'.trim($this->publicPath,'/').'/(.*)$ '.$this->createExternalUrl().'$1 [L]
+		</IfModule>';
+		return $strRules;
+	}
+
+	public function getRelativePathToFile($file){
+		return $this->publicPath.$file;
+	}
+
+	public function hasPublicURL(){
+		return true;
+	}
+	
+	public function hasRelativePath(){
+		if($this->enablePublicPath)
+			return false;
+		return true;
+	}
+
+	public function getPublicURLToFile($file){
+		if(strpos($rel, '://')) {
+            return $rel;
+        }
+
+        $url = \Core::getApplicationURL(true);
+       
+		if($this->enablePublicPath)
+			return str_replace('//', '/', $url.$this->publicPath.$file);
+		return str_replace('//', '/', $this->createExternalUrl().$file);
+	}
+
 
 	public function getAdapter(){
 		$client = S3Client::factory(array(
@@ -133,39 +218,9 @@ class S3Configuration extends coreConfiguration implements coreConfigurationInte
 		$AwsS3 = new coreAwsS3($client,$this->bucketname,($this->subfolder ? $this->subfolder : ''));
 		return $AwsS3;
 	}
-	
-	public function getPublicURLToFile($file){
-		if($this->publicPath)
-			return $this->publicPath.$file;
-		return '//'.$this->bucketname.'.s3.amazonaws.com'.($this->subfolder ? $this->subfolder : '').$file;
-	}
 
 	
-	private function setHtaccessEntry(){
-		//RewriteRule ^somefolder/(.*)$ http://static.domain.com/$1 [P]
-	}
-	
-	private function getHtaccessEntry(){
-		$strHt = '
-		# -- s3 amazon filemanager rewrite start --'
-		. $this->getRewriteRules() . '
-		# -- s3 amazon filemanager rewrite end --
-		';
-		return preg_replace('/\t/', '', $strHt);
-	}
-	
-	public function getRewriteRules(){
-		$strRules = '
-		<IfModule mod_rewrite.c>
-			RewriteEngine On
-			RewriteBase /
-			RewriteRule ^'.$this->publicPath.'/(.*)$ http://'.$this->bucketname.'.s3.amazonaws.com'.($this->subfolder ? $this->subfolder : '').'$1 [L]
-		</IfModule>';
-
-		return $strRules;
-	}
-
-	public function getRelativePathToFile($file){
-		return $file;
+	private function createExternalUrl(){
+		return 'https://'.$this->bucketname.'.s3'.($this->region ? $this->region : '').'.amazonaws.com'.($this->subfolder ? $this->subfolder : '').'/';
 	}
 }
