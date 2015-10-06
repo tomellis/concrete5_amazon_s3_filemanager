@@ -14,4 +14,5 @@ Usage:
 - ready
 
 Optional:
-- show localpath for you s3 files
+- show local path for you s3 stored files
+- select bucket location 
