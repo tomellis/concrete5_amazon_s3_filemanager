@@ -11,6 +11,7 @@ Usage:
 - Install package
 - create new File Storage Location on /dashboard/system/files/storage
 - insert your S3 credentials
+- enable s3 website on the bucket in AWS control panel
 - ready
 
 Optional:
