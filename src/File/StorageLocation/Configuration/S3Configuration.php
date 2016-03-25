@@ -223,6 +223,6 @@ class S3Configuration extends coreConfiguration implements coreConfigurationInte
 
 	
 	private function createExternalUrl(){
-		return 'https://'.$this->bucketname.'.s3-website-'.($this->region ? $this->region : '').'.amazonaws.com'.($this->subfolder ? $this->subfolder : '').'/';
+		return 'http://'.$this->bucketname.'.s3-website-'.($this->region ? $this->region : '').'.amazonaws.com'.($this->subfolder ? $this->subfolder : '').'/';
 	}
 }
