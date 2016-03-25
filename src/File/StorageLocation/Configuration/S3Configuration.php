@@ -185,7 +185,8 @@ class S3Configuration extends coreConfiguration implements coreConfigurationInte
 	public function getRelativePathToFile($file){
 		if($this->enablePublicPath)
 			return $this->publicPath.$file;
-		return str_replace('//', '/', $this->createExternalUrl().$file);
+                $found = 0;
+                return preg_replace('/(\/\/)/e', '$found++ ? \'/\' : \'$1\'', $this->createExternalUrl().$file);          
 	}
 
 	public function hasPublicURL(){
